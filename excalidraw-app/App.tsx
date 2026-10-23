@@ -143,6 +143,7 @@ import DebugCanvas, {
 import { useSimulatedCollaborators } from "./debugCollaborators";
 import { AIComponents } from "./components/AI";
 import { ExcalidrawPlusIframeExport } from "./ExcalidrawPlusIframeExport";
+import { WITHOUT_UPSTREAM_SERVERS } from "./tofu";
 
 import "./index.scss";
 
@@ -225,9 +226,11 @@ const initializeScene = async (opts: {
 > => {
   const searchParams = new URLSearchParams(window.location.search);
   const id = searchParams.get("id");
-  const jsonBackendMatch = window.location.hash.match(
-    /^#json=([a-zA-Z0-9_-]+),([a-zA-Z0-9_-]+)$/,
-  );
+  // Tofu: shareable links (#json=) and collaboration rooms (#room=) live on
+  // the upstream authors' servers, which this copy never calls.
+  const jsonBackendMatch = WITHOUT_UPSTREAM_SERVERS
+    ? null
+    : window.location.hash.match(/^#json=([a-zA-Z0-9_-]+),([a-zA-Z0-9_-]+)$/);
   const externalUrlMatch = window.location.hash.match(/^#url=(.*)$/);
 
   const localDataState = importFromLocalStorage();
@@ -247,7 +250,9 @@ const initializeScene = async (opts: {
     appState: restoreAppState(localDataState?.appState, null),
   };
 
-  let roomLinkData = getCollaborationLinkData(window.location.href);
+  let roomLinkData = WITHOUT_UPSTREAM_SERVERS
+    ? null
+    : getCollaborationLinkData(window.location.href);
   const isExternalScene = !!(id || jsonBackendMatch || roomLinkData);
   if (isExternalScene) {
     if (
@@ -376,7 +381,8 @@ const ExcalidrawWrapper = () => {
   const excalidrawAPI = useExcalidrawAPI();
 
   const [errorMessage, setErrorMessage] = useState("");
-  const isCollabDisabled = isRunningInIframe();
+  // Tofu: live collaboration needs the upstream authors' servers, so it is off.
+  const isCollabDisabled = WITHOUT_UPSTREAM_SERVERS || isRunningInIframe();
 
   const { editorTheme, appTheme, setAppTheme } = useHandleAppTheme();
 
@@ -408,7 +414,7 @@ const ExcalidrawWrapper = () => {
   const [, setShareDialogState] = useAtom(shareDialogStateAtom);
   const [collabAPI] = useAtom(collabAPIAtom);
   const [isCollaborating] = useAtomWithInitialValue(isCollaboratingAtom, () => {
-    return isCollaborationLink(window.location.href);
+    return !isCollabDisabled && isCollaborationLink(window.location.href);
   });
   const collabError = useAtomValue(collabErrorIndicatorAtom);
   const userToFollow = useAtomValue(userToFollowAtom);
@@ -990,9 +996,16 @@ const ExcalidrawWrapper = () => {
                     );
                   }
                 : undefined,
+              // Tofu: no "Shareable link" and no "Export to Excalidraw+" card,
+              // both upload the drawing to the upstream authors' servers.
+              ...(WITHOUT_UPSTREAM_SERVERS
+                ? { onExportToBackend: undefined, renderCustomUI: undefined }
+                : {}),
             },
           },
         }}
+        // Tofu: the AI tools call the upstream authors' AI backend.
+        aiEnabled={!WITHOUT_UPSTREAM_SERVERS}
         langCode={langCode}
         renderCustomStats={renderCustomStats}
         detectScroll={false}
@@ -1049,7 +1062,7 @@ const ExcalidrawWrapper = () => {
         <OverwriteConfirmDialog>
           <OverwriteConfirmDialog.Actions.ExportToImage />
           <OverwriteConfirmDialog.Actions.SaveToDisk />
-          {excalidrawAPI && (
+          {excalidrawAPI && !WITHOUT_UPSTREAM_SERVERS && (
             <OverwriteConfirmDialog.Action
               title={t("overwriteConfirm.action.excalidrawPlus.title")}
               actionLabel={t("overwriteConfirm.action.excalidrawPlus.button")}
@@ -1067,7 +1080,9 @@ const ExcalidrawWrapper = () => {
           )}
         </OverwriteConfirmDialog>
         <AppFooter onChange={() => excalidrawAPI?.refresh()} />
-        {excalidrawAPI && <AIComponents excalidrawAPI={excalidrawAPI} />}
+        {excalidrawAPI && !WITHOUT_UPSTREAM_SERVERS && (
+          <AIComponents excalidrawAPI={excalidrawAPI} />
+        )}
 
         <TTDDialogTrigger />
         {isCollaborating && isOffline && (
@@ -1268,7 +1283,7 @@ const ExcalidrawWrapper = () => {
               label: t("overwriteConfirm.action.excalidrawPlus.button"),
               category: DEFAULT_CATEGORIES.export,
               icon: exportToPlus,
-              predicate: true,
+              predicate: !WITHOUT_UPSTREAM_SERVERS,
               keywords: ["plus", "export", "save", "backup"],
               perform: () => {
                 if (excalidrawAPI) {
@@ -1311,7 +1326,10 @@ const ExcalidrawWrapper = () => {
 };
 
 const ExcalidrawApp = () => {
+  // Tofu: the Excalidraw+ export window hands the local drawing to the
+  // upstream authors' Excalidraw+ app, so this copy never opens it.
   const isCloudExportWindow =
+    !WITHOUT_UPSTREAM_SERVERS &&
     window.location.pathname === "/excalidraw-plus-export";
   if (isCloudExportWindow) {
     return <ExcalidrawPlusIframeExport />;
