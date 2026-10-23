@@ -2,7 +2,8 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { registerSW } from "virtual:pwa-register";
 
-import "../excalidraw-app/sentry";
+// Tofu: no error reporting to the upstream authors' Sentry project, so
+// "../excalidraw-app/sentry" (Sentry.init) is not imported. See TOFU.md.
 
 import ExcalidrawApp from "./App";
 

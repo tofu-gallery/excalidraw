@@ -1,5 +1,7 @@
 // define `EXCALIDRAW_ASSET_PATH` as a SSOT
-const OSS_FONTS_CDN = "https://excalidraw.nyc3.cdn.digitaloceanspaces.com/oss/";
+// Tofu: serve the fonts from the app's own address (the build already
+// carries them) instead of the upstream authors' CDN. See TOFU.md.
+const OSS_FONTS_CDN = "/";
 const OSS_FONTS_FALLBACK = "/";
 
 /**
